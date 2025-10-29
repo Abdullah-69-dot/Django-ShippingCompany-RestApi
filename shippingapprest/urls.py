@@ -16,7 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path , include
-
+from shipments import views_front
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('shipments.urls')),]
+    path('api/', include('shipments.urls')),
+    path('', views_front.home, name='home'),
+    path('track/', views_front.track_page, name='track_page'),
+    path('company/register/', views_front.company_register_page, name='company_register_page'),
+    path('company/login/', views_front.company_login_page, name='company_login_page'),
+    path('company/dashboard/', views_front.company_dashboard, name='company_dashboard'),
+    path('company/logout/', views_front.company_logout_page, name='company_logout_page'),]

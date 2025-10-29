@@ -1,0 +1,111 @@
+{% extends 'shipments/base.html' %}
+
+{% block title %}تسجيل شركة جديدة{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body p-5">
+                <h2 class="text-center mb-4">
+                    <i class="fas fa-building text-primary"></i> تسجيل شركة جديدة
+                </h2>
+                
+                <div id="errorAlert" class="alert alert-danger d-none"></div>
+                <div id="successAlert" class="alert alert-success d-none"></div>
+
+                <form id="registerForm">
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-building"></i> اسم الشركة</label>
+                        <input type="text" class="form-control" id="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-envelope"></i> البريد الإلكتروني</label>
+                        <input type="email" class="form-control" id="email" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-phone"></i> رقم الهاتف</label>
+                        <input type="tel" class="form-control" id="phone" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-map-marker-alt"></i> العنوان</label>
+                        <textarea class="form-control" id="address" rows="2" required></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-lock"></i> كلمة المرور</label>
+                        <input type="password" class="form-control" id="password" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-lock"></i> تأكيد كلمة المرور</label>
+                        <input type="password" class="form-control" id="confirmPassword" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <i class="fas fa-user-plus"></i> تسجيل الشركة
+                    </button>
+                </form>
+
+                <div class="text-center mt-3">
+                    <p class="text-muted">لديك حساب بالفعل؟ <a href="/company/login">تسجيل الدخول</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (password !== confirmPassword) {
+        showError('كلمتا المرور غير متطابقتين');
+        return;
+    }
+    
+    const data = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value,
+        address: document.getElementById('address').value,
+        password: password
+    };
+    
+    try {
+        const response = await axios.post('/api/company/register/', data);
+        showSuccess('تم تسجيل الشركة بنجاح! جاري التحويل...');
+        setTimeout(() => {
+            window.location.href = '/company/dashboard';
+        }, 1500);
+    } catch (error) {
+        const errorMsg = error.response?.data?.email?.[0] || 
+                        error.response?.data?.error || 
+                        'حدث خطأ في التسجيل';
+        showError(errorMsg);
+    }
+});
+
+function showError(message) {
+    const alert = document.getElementById('errorAlert');
+    alert.textContent = message;
+    alert.classList.remove('d-none');
+    document.getElementById('successAlert').classList.add('d-none');
+}
+
+function showSuccess(message) {
+    const alert = document.getElementById('successAlert');
+    alert.textContent = message;
+    alert.classList.remove('d-none');
+    document.getElementById('errorAlert').classList.add('d-none');
+}
+</script>
+{% endblock %}
