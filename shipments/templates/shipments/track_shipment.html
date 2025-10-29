@@ -1,0 +1,259 @@
+{% extends 'shipments/base.html' %}
+
+{% block title %}تتبع الشحنة{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Search Section -->
+        <div class="card mb-4">
+            <div class="card-body p-5">
+                <h2 class="text-center mb-4">
+                    <i class="fas fa-search text-primary"></i> تتبع شحنتك
+                </h2>
+                <p class="text-center text-muted mb-4">أدخل رقم التتبع لمعرفة موقع شحنتك</p>
+                
+                <form id="trackForm" class="mb-0">
+                    <div class="input-group input-group-lg">
+                        <input type="text" class="form-control" id="trackingNumber" 
+                               placeholder="أدخل رقم التتبع (مثال: TRK1234567890)" required>
+                        <button class="btn btn-primary px-5" type="submit">
+                            <i class="fas fa-search"></i> تتبع
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="d-none">
+            <!-- Shipment Info Card -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="fas fa-box"></i> معلومات الشحنة</h4>
+                        <span id="shipmentStatus" class="status-badge"></span>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-muted"><i class="fas fa-hashtag"></i> رقم التتبع</h6>
+                            <p id="displayTrackingNumber" class="fw-bold"></p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-muted"><i class="fas fa-building"></i> الشركة</h6>
+                            <p id="companyName"></p>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-primary"><i class="fas fa-user"></i> المرسل</h6>
+                            <p id="senderName" class="mb-1 fw-bold"></p>
+                            <p id="senderAddress" class="text-muted small"></p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-success"><i class="fas fa-user"></i> المستلم</h6>
+                            <p id="receiverName" class="mb-1 fw-bold"></p>
+                            <p id="receiverAddress" class="text-muted small"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted"><i class="fas fa-weight"></i> الوزن</h6>
+                            <p id="weight"></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted"><i class="fas fa-calendar"></i> تاريخ الإنشاء</h6>
+                            <p id="createdDate"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Card -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="fas fa-map-marked-alt text-primary"></i> خريطة الشحنة</h5>
+                    <div id="trackMap" style="height: 400px; border-radius: 10px;"></div>
+                </div>
+            </div>
+
+            <!-- Status Timeline -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="mb-4"><i class="fas fa-history text-primary"></i> سجل حالة الشحنة</h5>
+                    <div id="statusTimeline"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Alert -->
+        <div id="errorSection" class="alert alert-danger d-none"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let trackMap;
+let markers = [];
+
+document.getElementById('trackForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const trackingNumber = document.getElementById('trackingNumber').value.trim();
+    
+    try {
+        const response = await axios.get(`/api/track/${trackingNumber}/`);
+        displayShipmentInfo(response.data);
+        document.getElementById('resultsSection').classList.remove('d-none');
+        document.getElementById('errorSection').classList.add('d-none');
+    } catch (error) {
+        document.getElementById('errorSection').textContent = 
+            'لم يتم العثور على الشحنة. تأكد من رقم التتبع وحاول مرة أخرى.';
+        document.getElementById('errorSection').classList.remove('d-none');
+        document.getElementById('resultsSection').classList.add('d-none');
+    }
+});
+
+function displayShipmentInfo(data) {
+    // Basic Info
+    document.getElementById('displayTrackingNumber').textContent = data.tracking_number;
+    document.getElementById('shipmentStatus').textContent = getStatusText(data.status);
+    document.getElementById('shipmentStatus').className = `status-badge status-${data.status}`;
+    document.getElementById('companyName').textContent = data.company_name;
+    
+    document.getElementById('senderName').textContent = data.sender_name;
+    document.getElementById('senderAddress').textContent = data.sender_address;
+    document.getElementById('receiverName').textContent = data.receiver_name;
+    document.getElementById('receiverAddress').textContent = data.receiver_address;
+    
+    document.getElementById('weight').textContent = `${data.weight} كجم`;
+    document.getElementById('createdDate').textContent = 
+        new Date(data.created_at).toLocaleDateString('ar-EG', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    
+    // Initialize map
+    initTrackMap(data);
+    
+    // Display timeline
+    displayTimeline(data.status_history);
+}
+
+function initTrackMap(data) {
+    if (trackMap) {
+        trackMap.remove();
+    }
+    
+    trackMap = L.map('trackMap').setView([30.0444, 31.2357], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(trackMap);
+    
+    markers = [];
+    
+    // Add sender marker
+    if (data.sender_lat && data.sender_lng) {
+        const senderMarker = L.marker([data.sender_lat, data.sender_lng], {
+            icon: L.divIcon({
+                className: 'custom-div-icon',
+                html: "<div style='background-color:#4285F4;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;'><i class='fas fa-user' style='color:white;'></i></div>",
+                iconSize: [30, 30]
+            })
+        }).addTo(trackMap);
+        senderMarker.bindPopup(`<b>المرسل:</b> ${data.sender_name}<br>${data.sender_address}`);
+        markers.push([data.sender_lat, data.sender_lng]);
+    }
+    
+    // Add receiver marker
+    if (data.receiver_lat && data.receiver_lng) {
+        const receiverMarker = L.marker([data.receiver_lat, data.receiver_lng], {
+            icon: L.divIcon({
+                className: 'custom-div-icon',
+                html: "<div style='background-color:#0F9D58;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;'><i class='fas fa-home' style='color:white;'></i></div>",
+                iconSize: [30, 30]
+            })
+        }).addTo(trackMap);
+        receiverMarker.bindPopup(`<b>المستلم:</b> ${data.receiver_name}<br>${data.receiver_address}`);
+        markers.push([data.receiver_lat, data.receiver_lng]);
+    }
+    
+    // Add current location markers from status history
+    if (data.status_history && data.status_history.length > 0) {
+        data.status_history.forEach((status, index) => {
+            if (status.latitude && status.longitude) {
+                const marker = L.marker([status.latitude, status.longitude], {
+                    icon: L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div style='background-color:#F4B400;width:25px;height:25px;border-radius:50%;display:flex;align-items:center;justify-content:center;'><i class='fas fa-map-pin' style='color:white;font-size:12px;'></i></div>",
+                        iconSize: [25, 25]
+                    })
+                }).addTo(trackMap);
+                marker.bindPopup(`<b>${getStatusText(status.status)}</b><br>${status.location || ''}<br><small>${new Date(status.updated_at).toLocaleString('ar-EG')}</small>`);
+                markers.push([status.latitude, status.longitude]);
+            }
+        });
+    }
+    
+    // Fit map to show all markers
+    if (markers.length > 0) {
+        trackMap.fitBounds(markers, { padding: [50, 50] });
+    }
+}
+
+function displayTimeline(statusHistory) {
+    const timeline = document.getElementById('statusTimeline');
+    
+    if (!statusHistory || statusHistory.length === 0) {
+        timeline.innerHTML = '<p class="text-muted">لا يوجد سجل حالة متاح</p>';
+        return;
+    }
+    
+    let html = '<div class="timeline">';
+    
+    statusHistory.forEach((status, index) => {
+        html += `
+        <div class="timeline-item mb-4">
+            <div class="d-flex">
+                <div class="me-3">
+                    <div class="status-badge status-${status.status}" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">${getStatusText(status.status)}</h6>
+                    <p class="text-muted small mb-1">
+                        <i class="fas fa-clock"></i> ${new Date(status.updated_at).toLocaleString('ar-EG')}
+                    </p>
+                    ${status.location ? `<p class="text-muted small mb-1"><i class="fas fa-map-marker-alt"></i> ${status.location}</p>` : ''}
+                    ${status.notes ? `<p class="small text-secondary">${status.notes}</p>` : ''}
+                </div>
+            </div>
+            ${index < statusHistory.length - 1 ? '<div style="border-right: 2px dashed #dee2e6; height: 20px; margin-right: 18px;"></div>' : ''}
+        </div>`;
+    });
+    
+    html += '</div>';
+    timeline.innerHTML = html;
+}
+
+function getStatusText(status) {
+    const statusMap = {
+        'pending': 'قيد الانتظار',
+        'picked_up': 'تم الاستلام',
+        'in_transit': 'في الطريق',
+        'out_for_delivery': 'خارج للتوصيل',
+        'delivered': 'تم التسليم',
+        'cancelled': 'ملغي'
+    };
+    return statusMap[status] || status;
+}
+</script>
+{% endblock %}
