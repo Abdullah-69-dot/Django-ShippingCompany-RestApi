@@ -1,6 +1,8 @@
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from django.conf import settings
 from .models import Shipment, Company, ShipmentStatus
@@ -15,23 +17,42 @@ import string
 def generate_tracking_number():
     return 'TRK' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
 
+# Calculate price based on weight and distance
+def calculate_price(weight, distance_km):
+    """Calculate shipping price: base price + weight factor + distance factor"""
+    base_price = 50  # جنيه
+    weight_price = float(weight) * 10  # 10 جنيه لكل كيلو
+    distance_price = float(distance_km or 0) * 2  # 2 جنيه لكل كيلومتر
+    return round(base_price + weight_price + distance_price, 2)
+
 # ============= Company Registration & Login =============
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def company_register(request):
     """Register a new company"""
     serializer = CompanySerializer(data=request.data)
     if serializer.is_valid():
         company = serializer.save()
-        # Store company ID in session
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(company)
+        
+        # Also store in session for template views
         request.session['company_id'] = company.id
+        
         return Response({
             'message': 'Company registered successfully',
-            'company': CompanySerializer(company).data
+            'company': CompanySerializer(company).data,
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
         }, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def company_login(request):
     """Company login"""
     serializer = CompanyLoginSerializer(data=request.data)
@@ -42,11 +63,19 @@ def company_login(request):
         try:
             company = Company.objects.get(email=email)
             if company.check_password(password):
-                # Store company ID in session
+                # Generate JWT tokens
+                refresh = RefreshToken.for_user(company)
+                
+                # Also store in session for template views
                 request.session['company_id'] = company.id
+                
                 return Response({
                     'message': 'Login successful',
-                    'company': CompanySerializer(company).data
+                    'company': CompanySerializer(company).data,
+                    'tokens': {
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                    }
                 }, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -66,7 +95,7 @@ def company_logout(request):
 @api_view(['POST'])
 def create_shipment(request):
     """Company creates a new shipment"""
-    # Check if company is logged in
+    # Check if company is logged in (session-based for templates)
     company_id = request.session.get('company_id')
     if not company_id:
         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -76,7 +105,35 @@ def create_shipment(request):
     except Company.DoesNotExist:
         return Response({'error': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
     
-    serializer = ShipmentCreateSerializer(data=request.data)
+    # Clean the data - convert empty strings and 'null' to None
+    data = request.data.copy()
+    
+    # Debug: print received data
+    print("=== Received Data ===")
+    print(data)
+    
+    for field in ['sender_lat', 'sender_lng', 'receiver_lat', 'receiver_lng', 'distance_km', 'price']:
+        if field in data:
+            value = data[field]
+            # Convert empty strings, 'null', 'undefined' to None
+            if value == '' or value == 'null' or value == 'undefined' or value is None:
+                data[field] = None
+            else:
+                # Try to convert to float
+                try:
+                    data[field] = float(value)
+                except (ValueError, TypeError):
+                    data[field] = None
+    
+    # Calculate price ALWAYS based on weight and distance
+    weight = float(data.get('weight', 0))
+    distance = float(data.get('distance_km') or 0)
+    data['price'] = calculate_price(weight, distance)
+    
+    print("=== Cleaned Data ===")
+    print(data)
+    
+    serializer = ShipmentCreateSerializer(data=data)
     
     if serializer.is_valid():
         # Generate tracking number
@@ -102,23 +159,29 @@ def create_shipment(request):
         # Send email to receiver
         receiver_email = serializer.validated_data.get('receiver_email')
         if receiver_email:
-            subject = 'Your Shipment Tracking Number'
+            subject = f'رقم تتبع شحنتك - {tracking_number}'
             message = f"""
-Dear {serializer.validated_data.get('receiver_name')},
+عزيزي/عزيزتي {serializer.validated_data.get('receiver_name')},
 
-Your shipment has been created successfully by {company.name}.
+تم إنشاء شحنة جديدة لك من شركة {company.name}.
 
-Tracking Number: {tracking_number}
+معلومات الشحنة:
+━━━━━━━━━━━━━━━━━━
+📦 رقم التتبع: {tracking_number}
+👤 المرسل: {serializer.validated_data.get('sender_name')}
+⚖️ الوزن: {serializer.validated_data.get('weight')} كجم
+💰 السعر: {shipment.price} جنيه
+━━━━━━━━━━━━━━━━━━
 
-You can track your shipment at any time using this number.
+يمكنك تتبع شحنتك في أي وقت باستخدام رقم التتبع أعلاه.
 
-Shipment Details:
-- From: {serializer.validated_data.get('sender_name')}
-- Weight: {serializer.validated_data.get('weight')} kg
+للتواصل:
+📞 {company.phone}
+📧 {company.email}
 
-Thank you for using our service!
+شكراً لاستخدامك خدماتنا!
 
-Best regards,
+مع تحيات،
 {company.name}
             """
             try:
@@ -129,15 +192,19 @@ Best regards,
                     [receiver_email],
                     fail_silently=False,
                 )
+                print(f"✅ Email sent to {receiver_email}")
             except Exception as e:
-                print(f"Email sending failed: {e}")
+                print(f"❌ Email sending failed: {e}")
         
         return Response({
             'message': 'Shipment created successfully',
             'tracking_number': tracking_number,
+            'price': float(shipment.price),
             'shipment': ShipmentSerializer(shipment).data
         }, status=status.HTTP_201_CREATED)
     
+    print("=== Serializer Errors ===")
+    print(serializer.errors)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
@@ -172,6 +239,23 @@ def update_shipment_status(request, shipment_id):
     if not new_status:
         return Response({'error': 'Status is required'}, status=status.HTTP_400_BAD_REQUEST)
     
+    # Clean latitude and longitude
+    if latitude == '' or latitude == 'null' or latitude == 'undefined':
+        latitude = None
+    else:
+        try:
+            latitude = float(latitude) if latitude else None
+        except (ValueError, TypeError):
+            latitude = None
+            
+    if longitude == '' or longitude == 'null' or longitude == 'undefined':
+        longitude = None
+    else:
+        try:
+            longitude = float(longitude) if longitude else None
+        except (ValueError, TypeError):
+            longitude = None
+    
     # Update shipment status
     shipment.status = new_status
     shipment.save()
@@ -180,10 +264,10 @@ def update_shipment_status(request, shipment_id):
     ShipmentStatus.objects.create(
         shipment=shipment,
         status=new_status,
-        location=location,
+        location=location or None,
         latitude=latitude,
         longitude=longitude,
-        notes=notes
+        notes=notes or None
     )
     
     return Response({
@@ -194,6 +278,7 @@ def update_shipment_status(request, shipment_id):
 # ============= Public Tracking =============
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def track_shipment(request, tracking_number):
     """Public endpoint - Track shipment by tracking number"""
     try:

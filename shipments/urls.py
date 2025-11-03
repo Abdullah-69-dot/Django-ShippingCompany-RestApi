@@ -1,8 +1,9 @@
 from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     company_register, company_login, company_logout,
     create_shipment, company_shipments, update_shipment_status,
-    track_shipment
+    track_shipment , 
 )
 
 urlpatterns = [
@@ -10,6 +11,9 @@ urlpatterns = [
     path('company/register/', company_register, name='company-register'),
     path('company/login/', company_login, name='company-login'),
     path('company/logout/', company_logout, name='company-logout'),
+    
+    # JWT Token Refresh
+    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     
     # Company Shipment Management
     path('shipments/create/', create_shipment, name='create-shipment'),
