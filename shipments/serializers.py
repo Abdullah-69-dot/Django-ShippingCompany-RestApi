@@ -38,7 +38,7 @@ class ShipmentCreateSerializer(serializers.ModelSerializer):
             'sender_name', 'sender_address', 'sender_lat', 'sender_lng',
             'receiver_name', 'receiver_address', 'receiver_email', 
             'receiver_lat', 'receiver_lng',
-            'weight', 'distance_km'
+            'weight', 'distance_km', 'price'
         ]
 
 class ShipmentTrackSerializer(serializers.ModelSerializer):

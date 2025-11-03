@@ -1,14 +1,47 @@
 {% extends 'shipments/base.html' %}
 
-{% block title %}لوحة تحكم الشركة{% endblock %}
+{% block title %}لوحة تحكم الشركة - الشحنات{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* يجب أن تكون هذه التنسيقات موجودة في ملف base.html الآن */
+    .map-container {
+        height: 300px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+    }
+    #mapPicker {
+        height: 500px; 
+    }
+    .modal-content {
+        border-radius: 15px;
+    }
+    /* تنسيقات حالة الشحنة */
+    .status-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: bold;
+        color: #fff;
+    }
+    .status-pending { background-color: #ffc107; color: #343a40; }
+    .status-picked_up { background-color: #0d6efd; }
+    .status-in_transit { background-color: #6c757d; }
+    .status-out_for_delivery { background-color: #fd7e14; }
+    .status-delivered { background-color: #28a745; }
+    .status-cancelled { background-color: #dc3545; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row">
+<div class="row justify-content-center">
     <div class="col-lg-12">
-        <div class="card mb-4">
-            <div class="card-body">
+        <div class="card mb-5 bg-white">
+            <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h3><i class="fas fa-tachometer-alt text-primary"></i> لوحة التحكم</h3>
+                    <h2 class="text-dark fw-bold mb-0"><i class="fas fa-tachometer-alt text-primary me-2"></i> لوحة التحكم</h2>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createShipmentModal">
                         <i class="fas fa-plus"></i> إضافة شحنة جديدة
                     </button>
@@ -16,15 +49,16 @@
             </div>
         </div>
 
-        <!-- Shipments List -->
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title mb-4"><i class="fas fa-list"></i> قائمة الشحنات</h5>
+                <h4 class="card-title mb-4 fw-bold text-dark"><i class="fas fa-list me-2 text-info"></i> قائمة الشحنات</h4>
+                
                 <div id="shipmentsContainer">
                     <div class="text-center py-5">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">جاري التحميل...</span>
                         </div>
+                        <p class="mt-2 text-muted">جاري تحميل بيانات الشحنات...</p>
                     </div>
                 </div>
             </div>
@@ -32,73 +66,87 @@
     </div>
 </div>
 
-<!-- Create Shipment Modal -->
+{# --- Modal: إنشاء شحنة جديدة --- #}
 <div class="modal fade" id="createShipmentModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-plus"></i> إضافة شحنة جديدة</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i> إضافة شحنة جديدة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div id="modalError" class="alert alert-danger d-none"></div>
                 <div id="modalSuccess" class="alert alert-success d-none"></div>
                 
                 <form id="createShipmentForm">
-                    <h6 class="text-primary mb-3"><i class="fas fa-user"></i> بيانات المرسل</h6>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">اسم المرسل</label>
-                            <input type="text" class="form-control" id="senderName" required>
+                    <div class="row">
+                        <div class="col-md-6 border-end">
+                            <h6 class="text-primary mb-3"><i class="fas fa-box-open me-1"></i> بيانات الشحنة والمرسل</h6>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">اسم المرسل</label>
+                                <input type="text" class="form-control" id="senderName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">عنوان المرسل</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="senderAddress" required>
+                                    <button type="button" class="btn btn-outline-primary" onclick="openMapPicker('sender')">
+                                        <i class="fas fa-map-marker-alt"></i> اختر الموقع
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">موقع المرسل على الخريطة</label>
+                                <div id="senderMap" class="map-container"></div>
+                                <input type="hidden" id="senderLat">
+                                <input type="hidden" id="senderLng">
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">عنوان المرسل</label>
-                            <input type="text" class="form-control" id="senderAddress" required>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">موقع المرسل (اختياري)</label>
-                        <div id="senderMap" style="height: 250px; border-radius: 8px;"></div>
-                        <input type="hidden" id="senderLat">
-                        <input type="hidden" id="senderLng">
-                    </div>
 
-                    <hr>
-                    
-                    <h6 class="text-success mb-3"><i class="fas fa-user"></i> بيانات المستلم</h6>
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label">اسم المستلم</label>
-                            <input type="text" class="form-control" id="receiverName" required>
+                        <div class="col-md-6">
+                            <h6 class="text-success mb-3"><i class="fas fa-user-check me-1"></i> بيانات المستلم</h6>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">اسم المستلم</label>
+                                <input type="text" class="form-control" id="receiverName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">عنوان المستلم</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="receiverAddress" required>
+                                    <button type="button" class="btn btn-outline-success" onclick="openMapPicker('receiver')">
+                                        <i class="fas fa-map-marker-alt"></i> اختر الموقع
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">البريد الإلكتروني للمستلم</label>
+                                <input type="email" class="form-control" id="receiverEmail" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">موقع المستلم على الخريطة</label>
+                                <div id="receiverMap" class="map-container"></div>
+                                <input type="hidden" id="receiverLat">
+                                <input type="hidden" id="receiverLng">
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">عنوان المستلم</label>
-                            <input type="text" class="form-control" id="receiverAddress" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">البريد الإلكتروني</label>
-                            <input type="email" class="form-control" id="receiverEmail" required>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">موقع المستلم (اختياري)</label>
-                        <div id="receiverMap" style="height: 250px; border-radius: 8px;"></div>
-                        <input type="hidden" id="receiverLat">
-                        <input type="hidden" id="receiverLng">
                     </div>
 
                     <hr>
                     
                     <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label">الوزن (كجم)</label>
-                            <input type="number" step="0.01" class="form-control" id="weight" required>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">الوزن (كجم)</label>
+                            <input type="number" step="0.01" class="form-control" id="weight" required onchange="calculatePrice()">
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">المسافة (كم) - اختياري</label>
-                            <input type="number" step="0.01" class="form-control" id="distance">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">المسافة (كم)</label>
+                            <input type="number" step="0.01" class="form-control" id="distance" readonly placeholder="يحسب تلقائياً">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">السعر النهائي (جنيه)</label>
+                            <input type="number" step="0.01" class="form-control bg-light" id="price" readonly>
                         </div>
                     </div>
                 </form>
@@ -106,19 +154,58 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
                 <button type="button" class="btn btn-primary" onclick="submitShipment()">
-                    <i class="fas fa-check"></i> حفظ الشحنة
+                    <i class="fas fa-check"></i> حفظ وإنشاء الشحنة
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Update Status Modal -->
-<div class="modal fade" id="updateStatusModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+{# --- Modal: اختيار الموقع من الخريطة (لإنشاء الشحنة) --- #}
+<div class="modal fade" id="mapPickerModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-edit"></i> تحديث حالة الشحنة</h5>
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="mapPickerTitle"><i class="fas fa-map-marked-alt me-2"></i> اختر الموقع من الخريطة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info py-2">
+                    <i class="fas fa-info-circle me-1"></i> **انقر على الخريطة** لتحديد الموقع، أو استخدم شريط البحث.
+                </div>
+                
+                <div class="mb-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="mapSearch" placeholder="ابحث عن مكان (مثال: ميدان التحرير)">
+                        <button class="btn btn-info text-white" type="button" onclick="searchLocation()">
+                            <i class="fas fa-search"></i> بحث
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="mapPicker"></div>
+                
+                <div id="selectedLocationInfo" class="alert alert-success mt-3" style="display: none;">
+                    <p class="mb-1">**العنوان:** <span id="selectedAddress">-</span></p>
+                    <p class="mb-0">**الإحداثيات:** <span id="selectedCoords">-</span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" onclick="confirmLocation()" disabled id="confirmLocationBtn">
+                    <i class="fas fa-check"></i> تأكيد الموقع
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# --- Modal: تحديث حالة الشحنة --- #}
+<div class="modal fade" id="updateStatusModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-history me-2"></i> تحديث حالة الشحنة</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -126,7 +213,7 @@
                 <input type="hidden" id="updateShipmentId">
                 
                 <div class="mb-3">
-                    <label class="form-label">الحالة الجديدة</label>
+                    <label class="form-label fw-bold">الحالة الجديدة</label>
                     <select class="form-select" id="newStatus" required>
                         <option value="pending">قيد الانتظار</option>
                         <option value="picked_up">تم الاستلام</option>
@@ -138,25 +225,26 @@
                 </div>
                 
                 <div class="mb-3">
-                    <label class="form-label">الموقع الحالي</label>
-                    <input type="text" class="form-control" id="currentLocation">
+                    <label class="form-label fw-bold">الموقع الحالي (نص)</label>
+                    <input type="text" class="form-control" id="currentLocation" placeholder="مثال: مركز التوزيع - القاهرة">
                 </div>
                 
                 <div class="mb-3">
-                    <label class="form-label">اختر الموقع من الخريطة (اختياري)</label>
-                    <div id="statusMap" style="height: 300px; border-radius: 8px;"></div>
+                    <label class="form-label fw-bold">اختر الموقع من الخريطة</label>
+                    <div id="statusMap" class="map-container"></div>
                     <input type="hidden" id="statusLat">
                     <input type="hidden" id="statusLng">
+                    <small class="text-muted">انقر على الخريطة لتحديد الموقع الحالي للشحنة</small>
                 </div>
                 
                 <div class="mb-3">
-                    <label class="form-label">ملاحظات</label>
+                    <label class="form-label fw-bold">ملاحظات</label>
                     <textarea class="form-control" id="statusNotes" rows="3"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
-                <button type="button" class="btn btn-primary" onclick="submitStatusUpdate()">
+                <button type="button" class="btn btn-warning text-dark" onclick="submitStatusUpdate()">
                     <i class="fas fa-check"></i> تحديث الحالة
                 </button>
             </div>
@@ -167,103 +255,325 @@
 
 {% block extra_js %}
 <script>
-let senderMap, receiverMap, statusMap;
-let senderMarker, receiverMarker, statusMarker;
+let senderMap, receiverMap, statusMap, mapPickerMap;
+let senderMarker, receiverMarker, statusMarker, pickerMarker;
+let currentPickerType = null;
+let selectedLocation = null;
 
-// Initialize maps when modals open
-document.getElementById('createShipmentModal').addEventListener('shown.bs.modal', function () {
-    if (!senderMap) {
-        initSenderMap();
-        initReceiverMap();
-    }
-    setTimeout(() => {
-        senderMap.invalidateSize();
-        receiverMap.invalidateSize();
-    }, 100);
-});
+const DEFAULT_CENTER = [30.0444, 31.2357]; // القاهرة
+const DEFAULT_ZOOM = 10;
 
-document.getElementById('updateStatusModal').addEventListener('shown.bs.modal', function () {
-    if (!statusMap) {
-        initStatusMap();
+// =======================================================
+// 🗺️ وظائف الخرائط الأساسية والتهيئة 
+// =======================================================
+
+function initLeafletMap(mapId, initialLat, initialLng, clickHandler) {
+    let mapInstance;
+    
+    // إزالة الخريطة القديمة لتجنب تراكب الخرائط عند إعادة الفتح
+    const mapElement = document.getElementById(mapId);
+    if (mapElement && mapElement._leaflet_id !== undefined) {
+        try { 
+            // تحقق من وجود الخريطة أولا قبل محاولة الإزالة
+            if(L.DomUtil.get(mapId)._leaflet_id) {
+                L.map(mapId).remove();
+            }
+        } catch(e) { /* ignore */ }
     }
-    setTimeout(() => statusMap.invalidateSize(), 100);
-});
+
+    try {
+        mapInstance = L.map(mapId).setView([initialLat, initialLng], DEFAULT_ZOOM);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(mapInstance);
+        
+        if (clickHandler) {
+            mapInstance.on('click', clickHandler);
+        }
+
+        // الحل لظهور الخريطة في الـ Modal: Invalidating Size
+        setTimeout(() => {
+            mapInstance.invalidateSize();
+        }, 100);
+
+        return mapInstance;
+    } catch (error) {
+        console.error(`Error initializing map ${mapId}:`, error);
+        return null;
+    }
+}
 
 function initSenderMap() {
-    senderMap = L.map('senderMap').setView([30.0444, 31.2357], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(senderMap);
-    
-    senderMap.on('click', function(e) {
-        if (senderMarker) senderMap.removeLayer(senderMarker);
-        senderMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(senderMap);
-        document.getElementById('senderLat').value = e.latlng.lat;
-        document.getElementById('senderLng').value = e.latlng.lng;
-    });
+    // استخدم initLeafletMap لإنشاء الخريطة بدلاً من L.map مباشرة
+    senderMap = initLeafletMap('senderMap', DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
 }
 
 function initReceiverMap() {
-    receiverMap = L.map('receiverMap').setView([30.0444, 31.2357], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(receiverMap);
-    
-    receiverMap.on('click', function(e) {
-        if (receiverMarker) receiverMap.removeLayer(receiverMarker);
-        receiverMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(receiverMap);
-        document.getElementById('receiverLat').value = e.latlng.lat;
-        document.getElementById('receiverLng').value = e.latlng.lng;
+    receiverMap = initLeafletMap('receiverMap', DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+}
+
+function initStatusMap(lat = DEFAULT_CENTER[0], lng = DEFAULT_CENTER[1]) {
+    // تهيئة خريطة تحديث الحالة
+    statusMap = initLeafletMap('statusMap', lat, lng, async function(e) {
+        const { lat, lng } = e.latlng;
+        updateStatusMarker(lat, lng);
     });
 }
 
-function initStatusMap() {
-    statusMap = L.map('statusMap').setView([30.0444, 31.2357], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(statusMap);
+function updateMapMarker(map, markerRefName, color, lat, lng, addressId, latId, lngId, title) {
+    let currentMarker;
+    if (markerRefName === 'senderMarker') currentMarker = senderMarker;
+    else if (markerRefName === 'receiverMarker') currentMarker = receiverMarker;
+
+    if (currentMarker) {
+        map.removeLayer(currentMarker);
+    }
     
-    statusMap.on('click', function(e) {
-        if (statusMarker) statusMap.removeLayer(statusMarker);
-        statusMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(statusMap);
-        document.getElementById('statusLat').value = e.latlng.lat;
-        document.getElementById('statusLng').value = e.latlng.lng;
+    const customIcon = L.icon({
+        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
     });
+    
+    const newMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+
+    // هذا الجزء لم يعد ضرورياً هنا، يتم تحديد العنوان في الـ Picker Modal
+    // const address = await getAddressFromCoordinates(lat, lng); 
+    const address = document.getElementById(addressId).value;
+
+    if (address) {
+        newMarker.bindPopup(`<b>${title}</b><br>${address}`).openPopup();
+    } else {
+        newMarker.bindPopup(`<b>${title}</b>`).openPopup();
+    }
+
+    document.getElementById(latId).value = lat.toFixed(6);
+    document.getElementById(lngId).value = lng.toFixed(6);
+    
+    if (markerRefName === 'senderMarker') senderMarker = newMarker;
+    else if (markerRefName === 'receiverMarker') receiverMarker = newMarker;
 }
 
-async function loadShipments() {
+function updateStatusMarker(lat, lng) {
+    if (statusMarker) {
+        statusMap.removeLayer(statusMarker);
+    }
+    
+    const icon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+    
+    statusMarker = L.marker([lat, lng], { icon: icon }).addTo(statusMap);
+    statusMarker.bindPopup('<b>الموقع الحالي</b>').openPopup();
+    
+    document.getElementById('statusLat').value = lat.toFixed(6);
+    document.getElementById('statusLng').value = lng.toFixed(6);
+}
+
+
+// =======================================================
+// 📌 Map Picker Functions
+// =======================================================
+
+function openMapPicker(type) {
+    currentPickerType = type;
+    selectedLocation = null;
+    
+    const title = type === 'sender' ? 'اختر موقع المرسل' : 'اختر موقع المستلم';
+    document.getElementById('mapPickerTitle').textContent = title;
+    document.getElementById('selectedLocationInfo').style.display = 'none';
+    document.getElementById('confirmLocationBtn').disabled = true;
+    
+    const modalElement = document.getElementById('mapPickerModal');
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+    
+    modalElement.addEventListener('shown.bs.modal', function () {
+        setTimeout(() => {
+            initMapPicker();
+        }, 100);
+    }, { once: true });
+}
+
+function initMapPicker() {
+    let initialLat = DEFAULT_CENTER[0];
+    let initialLng = DEFAULT_CENTER[1];
+    
+    // إزالة الخريطة القديمة لتجنب التراكب
+    if (mapPickerMap) {
+        mapPickerMap.remove();
+        mapPickerMap = null;
+    }
+
+    mapPickerMap = L.map('mapPicker').setView([initialLat, initialLng], 13);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(mapPickerMap);
+    
+    mapPickerMap.on('click', async function(e) {
+        await handleMapClick(e.latlng.lat, e.latlng.lng);
+    });
+
+    setTimeout(() => mapPickerMap.invalidateSize(), 100);
+}
+
+async function handleMapClick(lat, lng) {
+    if (pickerMarker) {
+        mapPickerMap.removeLayer(pickerMarker);
+    }
+    
+    const iconColor = currentPickerType === 'sender' ? 'blue' : 'green';
+    const customIcon = L.icon({
+        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`,
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+    
+    pickerMarker = L.marker([lat, lng], { icon: customIcon }).addTo(mapPickerMap);
+    
+    const address = await getAddressFromCoordinates(lat, lng);
+    
+    selectedLocation = {
+        lat: lat,
+        lng: lng,
+        address: address || 'عنوان غير معروف'
+    };
+    
+    document.getElementById('selectedAddress').textContent = selectedLocation.address;
+    document.getElementById('selectedCoords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    document.getElementById('selectedLocationInfo').style.display = 'block';
+    document.getElementById('confirmLocationBtn').disabled = false;
+    
+    pickerMarker.bindPopup(`<b>${selectedLocation.address}</b>`).openPopup();
+}
+
+function confirmLocation() {
+    if (!selectedLocation) return;
+    
+    const lat = selectedLocation.lat;
+    const lng = selectedLocation.lng;
+    const address = selectedLocation.address;
+
+    if (currentPickerType === 'sender') {
+        document.getElementById('senderAddress').value = address;
+        document.getElementById('senderLat').value = lat.toFixed(6);
+        document.getElementById('senderLng').value = lng.toFixed(6);
+        // يجب أن نضمن تهيئة الخريطة الصغيرة إذا لم يتم تهيئتها بعد
+        if (!senderMap) initSenderMap();
+        updateMapMarker(senderMap, 'senderMarker', 'blue', lat, lng, 'senderAddress', 'senderLat', 'senderLng', 'موقع المرسل');
+    } else {
+        document.getElementById('receiverAddress').value = address;
+        document.getElementById('receiverLat').value = lat.toFixed(6);
+        document.getElementById('receiverLng').value = lng.toFixed(6);
+        // يجب أن نضمن تهيئة الخريطة الصغيرة إذا لم يتم تهيئتها بعد
+        if (!receiverMap) initReceiverMap();
+        updateMapMarker(receiverMap, 'receiverMarker', 'green', lat, lng, 'receiverAddress', 'receiverLat', 'receiverLng', 'موقع المستلم');
+    }
+    
+    calculateDistanceAndPrice();
+    bootstrap.Modal.getInstance(document.getElementById('mapPickerModal')).hide();
+}
+
+async function searchLocation() {
+    const query = document.getElementById('mapSearch').value.trim();
+    if (!query) return;
+    
     try {
-        const response = await axios.get('/api/shipments/');
-        displayShipments(response.data);
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=ar`
+        );
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lng = parseFloat(data[0].lon);
+            
+            mapPickerMap.setView([lat, lng], 15);
+            await handleMapClick(lat, lng);
+        } else {
+            alert('لم يتم العثور على المكان.');
+        }
     } catch (error) {
-        document.getElementById('shipmentsContainer').innerHTML = 
-            '<div class="alert alert-danger">حدث خطأ في تحميل الشحنات</div>';
+        console.error('Search error:', error);
     }
 }
 
-function displayShipments(shipments) {
-    const container = document.getElementById('shipmentsContainer');
-    
-    if (shipments.length === 0) {
-        container.innerHTML = '<div class="alert alert-info">لا توجد شحنات حتى الآن</div>';
-        return;
+// =======================================================
+// 📊 Calculations (Distance & Price)
+// =======================================================
+
+async function getAddressFromCoordinates(lat, lng) {
+    try {
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=ar`
+        );
+        const data = await response.json();
+        return data.display_name || 'عنوان غير معروف';
+    } catch (error) {
+        return null;
     }
-    
-    let html = '<div class="table-responsive"><table class="table table-hover">';
-    html += '<thead><tr><th>رقم التتبع</th><th>المرسل</th><th>المستلم</th><th>الحالة</th><th>التاريخ</th><th>الإجراءات</th></tr></thead><tbody>';
-    
-    shipments.forEach(shipment => {
-        html += `<tr>
-            <td><strong>${shipment.tracking_number}</strong></td>
-            <td>${shipment.sender_name}</td>
-            <td>${shipment.receiver_name}</td>
-            <td><span class="status-badge status-${shipment.status}">${getStatusText(shipment.status)}</span></td>
-            <td>${new Date(shipment.created_at).toLocaleDateString('ar-EG')}</td>
-            <td>
-                <button class="btn btn-sm btn-primary" onclick="openUpdateStatus(${shipment.id})">
-                    <i class="fas fa-edit"></i> تحديث
-                </button>
-            </td>
-        </tr>`;
-    });
-    
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
 }
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c); 
+}
+
+function calculatePrice() {
+    const basePrice = 50; 
+    const weightRate = 10; 
+    const distanceRate = 2; 
+    
+    const weight = parseFloat(document.getElementById('weight').value) || 0;
+    const distance = parseFloat(document.getElementById('distance').value) || 0;
+    
+    const price = basePrice + (weight * weightRate) + (distance * distanceRate);
+    
+    document.getElementById('price').value = price.toFixed(2);
+    return price;
+}
+
+function calculateDistanceAndPrice() {
+    const senderLat = parseFloat(document.getElementById('senderLat').value);
+    const senderLng = parseFloat(document.getElementById('senderLng').value);
+    const receiverLat = parseFloat(document.getElementById('receiverLat').value);
+    const receiverLng = parseFloat(document.getElementById('receiverLng').value);
+
+    if (senderLat && senderLng && receiverLat && receiverLng) {
+        const distance = calculateDistance(senderLat, senderLng, receiverLat, receiverLng);
+        document.getElementById('distance').value = distance.toFixed(2);
+        calculatePrice();
+    } else {
+        document.getElementById('distance').value = '0.00';
+        calculatePrice();
+    }
+}
+
+// =======================================================
+// 🚚 Shipment API/Data Functions
+// =======================================================
 
 function getStatusText(status) {
     const statusMap = {
@@ -277,7 +587,49 @@ function getStatusText(status) {
     return statusMap[status] || status;
 }
 
+function displayShipments(shipments) {
+    const container = document.getElementById('shipmentsContainer');
+    
+    if (shipments.length === 0) {
+        container.innerHTML = '<div class="alert alert-info text-center"><i class="fas fa-info-circle me-1"></i> لا توجد شحنات مسجلة حتى الآن.</div>';
+        return;
+    }
+    
+    let html = '<div class="table-responsive"><table class="table table-hover align-middle">';
+    html += '<thead class="table-light"><tr><th>رقم التتبع</th><th>المرسل</th><th>المستلم</th><th>الوزن/المسافة</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>';
+    
+    shipments.forEach(shipment => {
+        html += `<tr>
+            <td><strong>#${shipment.tracking_number}</strong></td>
+            <td>${shipment.sender_name} <br><small class="text-muted">${shipment.sender_address.substring(0, 30)}...</small></td>
+            <td>${shipment.receiver_name} <br><small class="text-muted">${shipment.receiver_address.substring(0, 30)}...</small></td>
+            <td>${shipment.weight} كجم / ${shipment.distance_km || 'N/A'} كم</td>
+            <td><span class="status-badge status-${shipment.status}">${getStatusText(shipment.status)}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="openUpdateStatus(${shipment.id})">
+                    <i class="fas fa-edit"></i> تحديث الحالة
+                </button>
+            </td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+async function loadShipments() {
+    try {
+        const response = await axios.get('/api/shipments/'); 
+        displayShipments(response.data);
+    } catch (error) {
+        console.error('Error loading shipments:', error);
+        document.getElementById('shipmentsContainer').innerHTML = 
+            '<div class="alert alert-danger text-center"><i class="fas fa-times-circle me-1"></i> حدث خطأ في تحميل الشحنات. (تأكد من إعداد API)</div>';
+    }
+}
+
 async function submitShipment() {
+    // جلب البيانات من النموذج
     const data = {
         sender_name: document.getElementById('senderName').value,
         sender_address: document.getElementById('senderAddress').value,
@@ -288,52 +640,164 @@ async function submitShipment() {
         receiver_email: document.getElementById('receiverEmail').value,
         receiver_lat: document.getElementById('receiverLat').value || null,
         receiver_lng: document.getElementById('receiverLng').value || null,
-        weight: document.getElementById('weight').value,
-        distance_km: document.getElementById('distance').value || null
+        weight: parseFloat(document.getElementById('weight').value) || 0,
+        distance_km: document.getElementById('distance').value ? parseFloat(document.getElementById('distance').value) : null
     };
-    
+
+    // تحقق أساسي من البيانات
+    if (!data.sender_name || !data.receiver_name || !data.receiver_email || data.weight === 0) {
+        document.getElementById('modalError').textContent = 'الرجاء ملء جميع الحقول المطلوبة (الاسم، العنوان، البريد، الوزن).';
+        document.getElementById('modalError').classList.remove('d-none');
+        document.getElementById('modalSuccess').classList.add('d-none');
+        return;
+    }
+
     try {
         const response = await axios.post('/api/shipments/create/', data);
+        
         document.getElementById('modalSuccess').textContent = 
             `تم إنشاء الشحنة بنجاح! رقم التتبع: ${response.data.tracking_number}`;
         document.getElementById('modalSuccess').classList.remove('d-none');
+        document.getElementById('modalError').classList.add('d-none');
         document.getElementById('createShipmentForm').reset();
+        
+        // مسح الإحداثيات والماركرز من الخرائط الصغيرة
+        document.getElementById('senderLat').value = '';
+        document.getElementById('senderLng').value = '';
+        document.getElementById('receiverLat').value = '';
+        document.getElementById('receiverLng').value = '';
+        if (senderMarker) { senderMap.removeLayer(senderMarker); senderMarker = null; }
+        if (receiverMarker) { receiverMap.removeLayer(receiverMarker); receiverMarker = null; }
+        
+        // إخفاء الـ Modal بعد 3 ثواني
         setTimeout(() => {
-            bootstrap.Modal.getInstance(document.getElementById('createShipmentModal')).hide();
+            const modalInstance = bootstrap.Modal.getInstance(document.getElementById('createShipmentModal'));
+            if (modalInstance) modalInstance.hide();
+            document.getElementById('modalSuccess').classList.add('d-none');
             loadShipments();
-        }, 2000);
+        }, 3000);
+
     } catch (error) {
-        document.getElementById('modalError').textContent = 'حدث خطأ في إنشاء الشحنة';
+        console.error('Error:', error.response?.data);
+        let errorMsg = JSON.stringify(error.response?.data || 'حدث خطأ في إنشاء الشحنة', null, 2);
+        document.getElementById('modalError').innerHTML = `حدث خطأ: <pre>${errorMsg}</pre>`;
         document.getElementById('modalError').classList.remove('d-none');
+        document.getElementById('modalSuccess').classList.add('d-none');
     }
 }
 
-function openUpdateStatus(shipmentId) {
+async function openUpdateStatus(shipmentId) {
     document.getElementById('updateShipmentId').value = shipmentId;
-    new bootstrap.Modal(document.getElementById('updateStatusModal')).show();
+    document.getElementById('statusModalError').classList.add('d-none');
+    
+    // إعادة تعيين الحقول قبل الفتح
+    document.getElementById('currentLocation').value = '';
+    document.getElementById('statusLat').value = '';
+    document.getElementById('statusLng').value = '';
+    document.getElementById('statusNotes').value = '';
+    
+    const modalElement = document.getElementById('updateStatusModal');
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+
+    modalElement.addEventListener('shown.bs.modal', async function () {
+        // تهيئة الخريطة مع مركز افتراضي، ثم تحديثها ببيانات الشحنة
+        initStatusMap(); 
+
+        try {
+            // جلب تفاصيل الشحنة (يتطلب أن يكون المسار /api/shipments/ID/ مُعرّفاً في urls.py)
+            const response = await axios.get(`/api/shipments/${shipmentId}/`);
+            const shipment = response.data;
+
+            document.getElementById('newStatus').value = shipment.status;
+
+            let initialLat = DEFAULT_CENTER[0];
+            let initialLng = DEFAULT_CENTER[1];
+
+            if (statusMarker) { statusMap.removeLayer(statusMarker); statusMarker = null; }
+
+            // إذا كان هناك موقع حالي في البيانات، استخدمه
+            if (shipment.current_lat && shipment.current_lng) {
+                initialLat = parseFloat(shipment.current_lat);
+                initialLng = parseFloat(shipment.current_lng);
+                document.getElementById('currentLocation').value = shipment.current_location_text || '';
+                updateStatusMarker(initialLat, initialLng); 
+            } else if (shipment.sender_lat && shipment.sender_lng) {
+                // وإلا، استخدم موقع المرسل كنقطة بداية للخريطة
+                initialLat = parseFloat(shipment.sender_lat);
+                initialLng = parseFloat(shipment.sender_lng);
+            }
+
+            // تحديث مركز الخريطة وحجمها
+            statusMap.setView([initialLat, initialLng], 12);
+            statusMap.invalidateSize();
+
+        } catch (error) {
+            // هذا هو مكان ظهور رسالة "حدث خطأ في جلب بيانات الشحنة."
+            document.getElementById('statusModalError').textContent = 'حدث خطأ في جلب بيانات الشحنة.';
+            document.getElementById('statusModalError').classList.remove('d-none');
+        }
+    }, { once: true });
 }
 
 async function submitStatusUpdate() {
     const shipmentId = document.getElementById('updateShipmentId').value;
+    const newStatus = document.getElementById('newStatus').value;
+    const currentLocation = document.getElementById('currentLocation').value;
+    const statusLat = document.getElementById('statusLat').value;
+    const statusLng = document.getElementById('statusLng').value;
+    const statusNotes = document.getElementById('statusNotes').value; // جلب الملاحظات
+
+    if (!newStatus) return;
+
     const data = {
-        status: document.getElementById('newStatus').value,
-        location: document.getElementById('currentLocation').value,
-        latitude: document.getElementById('statusLat').value || null,
-        longitude: document.getElementById('statusLng').value || null,
-        notes: document.getElementById('statusNotes').value
+        // يتم إرسال المفاتيح التي يتوقعها الـ Backend في views.py
+        status: newStatus,
+        location: currentLocation,
+        latitude: statusLat || null,
+        longitude: statusLng || null,
+        notes: statusNotes || null // إرسال الملاحظات
     };
     
+    // ** تحقق من أن جميع الحقول المطلوبة لـ Django موجودة **
+    if (!data.location) {
+        document.getElementById('statusModalError').textContent = 'الرجاء إدخال الموقع الحالي (نص).';
+        document.getElementById('statusModalError').classList.remove('d-none');
+        return;
+    }
+
+
     try {
-        await axios.post(`/api/shipments/${shipmentId}/update-status/`, data);
-        bootstrap.Modal.getInstance(document.getElementById('updateStatusModal')).hide();
-        loadShipments();
+        // 🔥🔥🔥 تم تصحيح المسار ليتطابق مع urls.py
+        const response = await axios.post(`/api/shipments/${shipmentId}/update-status/`, data); 
+
+        // إغلاق الـ Modal وإعادة تحميل القائمة
+        const modalInstance = bootstrap.Modal.getInstance(document.getElementById('updateStatusModal'));
+        if (modalInstance) modalInstance.hide();
+        loadShipments(); 
+        
     } catch (error) {
-        document.getElementById('statusModalError').textContent = 'حدث خطأ في التحديث';
+        console.error('Error updating status:', error.response?.data);
+        let errorMsg = error.response?.data?.error || JSON.stringify(error.response?.data || 'حدث خطأ غير معروف.', null, 2);
+        
+        document.getElementById('statusModalError').innerHTML = `حدث خطأ: ${errorMsg}`;
         document.getElementById('statusModalError').classList.remove('d-none');
     }
 }
 
-// Load shipments on page load
-loadShipments();
+// =======================================================
+// 🚀 Initial Load
+// =======================================================
+document.addEventListener('DOMContentLoaded', () => {
+    loadShipments();
+    
+    // تهيئة الخرائط الصغيرة عند فتح الـ Modal لأول مرة
+    const createShipmentModalElement = document.getElementById('createShipmentModal');
+    createShipmentModalElement.addEventListener('shown.bs.modal', function () {
+        initSenderMap();
+        initReceiverMap();
+    }, { once: true });
+});
+
 </script>
 {% endblock %}

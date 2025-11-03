@@ -49,6 +49,7 @@ class Shipment(models.Model):
     
     weight = models.DecimalField(max_digits=6, decimal_places=2)
     distance_km = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     tracking_number = models.CharField(max_length=100, unique=True)
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
