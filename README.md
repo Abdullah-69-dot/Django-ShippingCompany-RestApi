@@ -133,11 +133,6 @@ shipment-management-system/
 ### JWT Settings
 Token lifetime: 1 day (access), 7 days (refresh)
 
-## Testing
-
-Access test pages:
-- API Testing: http://127.0.0.1:8000/test/api/
-- Map Testing: http://127.0.0.1:8000/test/map/
 
 ## License
 
