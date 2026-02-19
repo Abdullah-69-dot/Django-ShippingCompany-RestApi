@@ -1,0 +1,84 @@
+/* Base Styles - Global Styling for Shipping App */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+/* Navbar Styles */
+.navbar {
+    background: rgba(255, 255, 255, 0.95) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* Card Styles */
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+/* Button Styles */
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    padding: 10px 25px;
+    border-radius: 25px;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+/* Map Container */
+#map {
+    height: 400px;
+    border-radius: 10px;
+    margin-top: 15px;
+}
+
+/* Status Badge Styles */
+.status-badge {
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.status-pending { 
+    background: #ffeaa7; 
+    color: #fdcb6e; 
+}
+
+.status-picked_up { 
+    background: #74b9ff; 
+    color: #0984e3; 
+}
+
+.status-in_transit { 
+    background: #a29bfe; 
+    color: #6c5ce7; 
+}
+
+.status-out_for_delivery { 
+    background: #fd79a8; 
+    color: #e84393; 
+}
+
+.status-delivered { 
+    background: #55efc4; 
+    color: #00b894; 
+}
+
+.status-cancelled { 
+    background: #fab1a0; 
+    color: #e17055; 
+}

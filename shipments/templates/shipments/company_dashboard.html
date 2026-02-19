@@ -1,0 +1,232 @@
+{% extends 'shipments/base.html' %}
+{% load static %}
+
+{% block title %}لوحة تحكم الشركة - الشحنات{% endblock %}
+
+{% block extra_css %}
+<!-- Dashboard-specific Styles -->
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-12">
+        <div class="card mb-5 bg-white">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="text-dark fw-bold mb-0"><i class="fas fa-tachometer-alt text-primary me-2"></i> لوحة التحكم</h2>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createShipmentModal">
+                        <i class="fas fa-plus"></i> إضافة شحنة جديدة
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title mb-4 fw-bold text-dark"><i class="fas fa-list me-2 text-info"></i> قائمة الشحنات</h4>
+                
+                <div id="shipmentsContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                        <p class="mt-2 text-muted">جاري تحميل بيانات الشحنات...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# --- Modal: إنشاء شحنة جديدة --- #}
+<div class="modal fade" id="createShipmentModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i> إضافة شحنة جديدة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalError" class="alert alert-danger d-none"></div>
+                <div id="modalSuccess" class="alert alert-success d-none"></div>
+                
+                <form id="createShipmentForm">
+                    <div class="row">
+                        <div class="col-md-6 border-end">
+                            <h6 class="text-primary mb-3"><i class="fas fa-box-open me-1"></i> بيانات الشحنة والمرسل</h6>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">اسم المرسل</label>
+                                <input type="text" class="form-control" id="senderName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">عنوان المرسل</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="senderAddress" required>
+                                    <button type="button" class="btn btn-outline-primary" onclick="openMapPicker('sender')">
+                                        <i class="fas fa-map-marker-alt"></i> اختر الموقع
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">موقع المرسل على الخريطة</label>
+                                <div id="senderMap" class="map-container"></div>
+                                <input type="hidden" id="senderLat">
+                                <input type="hidden" id="senderLng">
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="text-success mb-3"><i class="fas fa-user-check me-1"></i> بيانات المستلم</h6>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">اسم المستلم</label>
+                                <input type="text" class="form-control" id="receiverName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">عنوان المستلم</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="receiverAddress" required>
+                                    <button type="button" class="btn btn-outline-success" onclick="openMapPicker('receiver')">
+                                        <i class="fas fa-map-marker-alt"></i> اختر الموقع
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">البريد الإلكتروني للمستلم</label>
+                                <input type="email" class="form-control" id="receiverEmail" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">موقع المستلم على الخريطة</label>
+                                <div id="receiverMap" class="map-container"></div>
+                                <input type="hidden" id="receiverLat">
+                                <input type="hidden" id="receiverLng">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">الوزن (كجم)</label>
+                            <input type="number" step="0.01" class="form-control" id="weight" required onchange="calculatePrice()">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">المسافة (كم)</label>
+                            <input type="number" step="0.01" class="form-control" id="distance" readonly placeholder="يحسب تلقائياً">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">السعر النهائي (جنيه)</label>
+                            <input type="number" step="0.01" class="form-control bg-light" id="price" readonly>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" onclick="submitShipment()">
+                    <i class="fas fa-check"></i> حفظ وإنشاء الشحنة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# --- Modal: اختيار الموقع من الخريطة (لإنشاء الشحنة) --- #}
+<div class="modal fade" id="mapPickerModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="mapPickerTitle"><i class="fas fa-map-marked-alt me-2"></i> اختر الموقع من الخريطة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info py-2">
+                    <i class="fas fa-info-circle me-1"></i> **انقر على الخريطة** لتحديد الموقع، أو استخدم شريط البحث.
+                </div>
+                
+                <div class="mb-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="mapSearch" placeholder="ابحث عن مكان (مثال: ميدان التحرير)">
+                        <button class="btn btn-info text-white" type="button" onclick="searchLocation()">
+                            <i class="fas fa-search"></i> بحث
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="mapPicker"></div>
+                
+                <div id="selectedLocationInfo" class="alert alert-success mt-3" style="display: none;">
+                    <p class="mb-1">**العنوان:** <span id="selectedAddress">-</span></p>
+                    <p class="mb-0">**الإحداثيات:** <span id="selectedCoords">-</span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" onclick="confirmLocation()" disabled id="confirmLocationBtn">
+                    <i class="fas fa-check"></i> تأكيد الموقع
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# --- Modal: تحديث حالة الشحنة --- #}
+<div class="modal fade" id="updateStatusModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-history me-2"></i> تحديث حالة الشحنة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="statusModalError" class="alert alert-danger d-none"></div>
+                <input type="hidden" id="updateShipmentId">
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">الحالة الجديدة</label>
+                    <select class="form-select" id="newStatus" required>
+                        <option value="pending">قيد الانتظار</option>
+                        <option value="picked_up">تم الاستلام</option>
+                        <option value="in_transit">في الطريق</option>
+                        <option value="out_for_delivery">خارج للتوصيل</option>
+                        <option value="delivered">تم التسليم</option>
+                        <option value="cancelled">ملغي</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">الموقع الحالي (نص)</label>
+                    <input type="text" class="form-control" id="currentLocation" placeholder="مثال: مركز التوزيع - القاهرة">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">اختر الموقع من الخريطة</label>
+                    <div id="statusMap" class="map-container"></div>
+                    <input type="hidden" id="statusLat">
+                    <input type="hidden" id="statusLng">
+                    <small class="text-muted">انقر على الخريطة لتحديد الموقع الحالي للشحنة</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">ملاحظات</label>
+                    <textarea class="form-control" id="statusNotes" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-warning text-dark" onclick="submitStatusUpdate()">
+                    <i class="fas fa-check"></i> تحديث الحالة
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Dashboard JavaScript -->
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,53 @@
+/* Dashboard-specific Styles */
+
+/* Map Container for Dashboard */
+.map-container {
+    height: 300px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+}
+
+#mapPicker {
+    height: 500px;
+}
+
+/* Modal Styles */
+.modal-content {
+    border-radius: 15px;
+}
+
+/* Status Badge Overrides for Dashboard */
+.status-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.status-pending {
+    background-color: #ffc107;
+    color: #343a40;
+}
+
+.status-picked_up {
+    background-color: #0d6efd;
+}
+
+.status-in_transit {
+    background-color: #6c757d;
+}
+
+.status-out_for_delivery {
+    background-color: #fd7e14;
+}
+
+.status-delivered {
+    background-color: #28a745;
+}
+
+.status-cancelled {
+    background-color: #dc3545;
+}
