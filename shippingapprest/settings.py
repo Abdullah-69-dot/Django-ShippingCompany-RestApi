@@ -62,6 +62,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='your gmail here')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='your app password here')
+RESEND_API_KEY = config('RESEND_API_KEY', default='')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 MIDDLEWARE = [

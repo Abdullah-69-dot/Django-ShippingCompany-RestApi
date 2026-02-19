@@ -13,6 +13,10 @@ from .serializers import (
 import random
 import string
 import traceback
+import resend
+from django.conf import settings
+
+resend.api_key = settings.RESEND_API_KEY
 
 def generate_tracking_number():
     return 'TRK' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
@@ -179,17 +183,15 @@ def create_shipment(request):
 {company.name}
                 """
                 try:
-                    print(f"🔄 Attempting to send email (Threaded)...")
-                    # print(f"   To: {receiver_email}")
+                    print(f"🔄 Attempting to send email via Resend (Threaded)...")
                     
-                    send_mail(
-                        subject,
-                        message,
-                        settings.DEFAULT_FROM_EMAIL,
-                        [receiver_email],
-                        fail_silently=False,
-                    )
-                    print(f"✅ Email sent successfully to {receiver_email}")
+                    r = resend.Emails.send({
+                        "from": "onboarding@resend.dev",
+                        "to": receiver_email,
+                        "subject": subject,
+                        "html": message.replace('\n', '<br>') 
+                    })
+                    print(f"✅ Email sent successfully via Resend. ID: {r.get('id')}")
                 except Exception as e:
                     print(f"❌ Email sending failed!")
                     print(f"   Error: {e}")
