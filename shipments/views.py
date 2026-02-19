@@ -151,8 +151,9 @@ def create_shipment(request):
         print(f"{'='*60}\n")
         
         if receiver_email:
-            subject = f'شحنة جديدة من {serializer.validated_data.get("sender_name")} - رقم التتبع {tracking_number}'
-            message = f"""
+            def send_email_thread():
+                subject = f'شحنة جديدة من {serializer.validated_data.get("sender_name")} - رقم التتبع {tracking_number}'
+                message = f"""
 عزيزي/عزيزتي {serializer.validated_data.get('receiver_name')},
 
 تم إنشاء شحنة جديدة لك من {serializer.validated_data.get('sender_name')} عبر شركة {company.name}.
@@ -176,28 +177,28 @@ def create_shipment(request):
 
 مع تحيات،
 {company.name}
-            """
-            try:
-                print(f"🔄 Attempting to send email...")
-                print(f"   From: {settings.DEFAULT_FROM_EMAIL}")
-                print(f"   To: {receiver_email}")
-                print(f"   Subject: {subject}")
-                
-                send_mail(
-                    subject,
-                    message,
-                    settings.DEFAULT_FROM_EMAIL,
-                    [receiver_email],
-                    fail_silently=False,
-                )
-                print(f"✅ Email sent successfully to {receiver_email}")
-                print(f"{'='*60}\n")
-            except Exception as e:
-                print(f"❌ Email sending failed!")
-                print(f"   Error: {e}")
-                print(f"   Error Type: {type(e).__name__}")
-                traceback.print_exc()
-                print(f"{'='*60}\n")
+                """
+                try:
+                    print(f"🔄 Attempting to send email (Threaded)...")
+                    # print(f"   To: {receiver_email}")
+                    
+                    send_mail(
+                        subject,
+                        message,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [receiver_email],
+                        fail_silently=False,
+                    )
+                    print(f"✅ Email sent successfully to {receiver_email}")
+                except Exception as e:
+                    print(f"❌ Email sending failed!")
+                    print(f"   Error: {e}")
+
+            # Start email sending in a separate thread
+            import threading
+            email_thread = threading.Thread(target=send_email_thread)
+            email_thread.start()
+            print(f"🚀 Email thread started")
         else:
             print(f"⚠️  No receiver email provided - skipping email send")
             print(f"{'='*60}\n")
